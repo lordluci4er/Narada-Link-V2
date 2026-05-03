@@ -1,5 +1,13 @@
-import User from "../models/User.js";
-import { validateUsername } from "../utils/validators.js";
+import {
+  updateUsernameAndName,
+  updateName,
+  updateUserProfile,
+  searchUsersService,
+  getCurrentUser,
+  saveFcmTokenService,
+  getUserStatusService,
+} from "../services/userService.js";
+
 
 /// 🔥 SET USERNAME + NAME
 export const setUsername = async (req, res) => {
@@ -7,56 +15,17 @@ export const setUsername = async (req, res) => {
     const userId = req.user?.id || req.user;
     const { name, username } = req.body;
 
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-
-    /// 🔥 NAME UPDATE
-    if (name && name.trim().length >= 2) {
-      user.name = name.trim();
-    }
-
-    /// 🔥 USERNAME UPDATE
-    if (username) {
-      const clean = username.toLowerCase().trim();
-
-      const error = validateUsername
-        ? validateUsername(clean)
-        : null;
-
-      if (error) {
-        return res.status(400).json({ msg: error });
-      }
-
-      if (user.username) {
-        return res.status(400).json({
-          msg: "Username already set",
-        });
-      }
-
-      const exists = await User.findOne({ username: clean });
-
-      if (exists) {
-        return res.status(400).json({
-          msg: "Username already taken",
-        });
-      }
-
-      user.username = clean;
-    }
-
-    await user.save();
-
-    /// 🔥 SOCKET EMIT
-    const io = req.app.get("io");
-
-    io.emit("userUpdated", {
-      userId: user._id,
-      name: user.name,
-      avatar: user.avatar,
+    const result = await updateUsernameAndName({
+      userId,
+      name,
+      username,
     });
+
+    if (result.error) {
+      return res.status(400).json({ msg: result.error });
+    }
+
+    const user = result.user;
 
     res.json({
       msg: "Updated",
@@ -79,30 +48,17 @@ export const setName = async (req, res) => {
     const userId = req.user?.id || req.user;
     const { name } = req.body;
 
-    if (!name || name.trim().length < 2) {
-      return res.status(400).json({ msg: "Valid name required" });
+    const result = await updateName(userId, name);
+
+    if (result.error) {
+      return res.status(400).json({ msg: result.error });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { name: name.trim() },
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-
-    const io = req.app.get("io");
-
-    io.emit("userUpdated", {
-      userId: updatedUser._id,
-      name: updatedUser.name,
-    });
+    const user = result.user;
 
     res.json({
-      ...updatedUser._doc,
-      name: updatedUser.name || "Narada Link User",
+      ...user._doc,
+      name: user.name || "Narada Link User",
     });
 
   } catch (err) {
@@ -118,37 +74,21 @@ export const updateProfile = async (req, res) => {
     const userId = req.user?.id || req.user;
     const { name, avatar } = req.body;
 
-    const updateData = {};
-
-    if (name && name.trim().length >= 2) {
-      updateData.name = name.trim();
-    }
-
-    if (avatar && avatar.trim().length > 0) {
-      updateData.avatar = avatar.trim();
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
+    const result = await updateUserProfile({
       userId,
-      updateData,
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-
-    const io = req.app.get("io");
-
-    io.emit("userUpdated", {
-      userId: updatedUser._id,
-      name: updatedUser.name,
-      avatar: updatedUser.avatar,
+      name,
+      avatar,
     });
 
+    if (result.error) {
+      return res.status(400).json({ msg: result.error });
+    }
+
+    const user = result.user;
+
     res.json({
-      ...updatedUser._doc,
-      name: updatedUser.name || "Narada Link User",
+      ...user._doc,
+      name: user.name || "Narada Link User",
     });
 
   } catch (err) {
@@ -162,33 +102,11 @@ export const updateProfile = async (req, res) => {
 export const searchUsers = async (req, res) => {
   try {
     const query = (req.query.username || "").toLowerCase().trim();
-
-    if (!query) {
-      return res.json([]);
-    }
-
     const userId = req.user?.id || req.user;
 
-    const users = await User.find({
-      username: { $regex: query, $options: "i" },
-      _id: { $ne: userId },
-    })
-      .select("name username avatar isOnline lastSeen")
-      .limit(20);
+    const users = await searchUsersService(query, userId);
 
-    const result = users.map((u) => ({
-      _id: u._id,
-      name:
-        u.name && u.name.trim() !== ""
-          ? u.name
-          : "Narada Link User",
-      username: u.username || "",
-      avatar: u.avatar || null,
-      isOnline: u.isOnline || false,
-      lastSeen: u.lastSeen || null,
-    }));
-
-    res.json(result);
+    res.json(users);
 
   } catch (err) {
     console.error("Search Error:", err);
@@ -202,16 +120,13 @@ export const getMe = async (req, res) => {
   try {
     const userId = req.user?.id || req.user;
 
-    const user = await User.findById(userId);
+    const result = await getCurrentUser(userId);
 
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+    if (result.error) {
+      return res.status(404).json({ msg: result.error });
     }
 
-    res.json({
-      ...user._doc,
-      name: user.name || "Narada Link User",
-    });
+    res.json(result);
 
   } catch (error) {
     console.log("❌ getMe error:", error.message);
@@ -226,13 +141,11 @@ export const saveFcmToken = async (req, res) => {
     const userId = req.user?.id || req.user;
     const { token } = req.body;
 
-    if (!token) {
-      return res.status(400).json({ msg: "FCM token required" });
-    }
+    const result = await saveFcmTokenService(userId, token);
 
-    await User.findByIdAndUpdate(userId, {
-      fcmToken: token,
-    });
+    if (result.error) {
+      return res.status(400).json({ msg: result.error });
+    }
 
     res.json({ msg: "Token saved" });
 
@@ -243,20 +156,16 @@ export const saveFcmToken = async (req, res) => {
 };
 
 
-/// 🟢 GET USER STATUS (🔥 NEW)
+/// 🟢 GET USER STATUS
 export const getUserStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId)
-      .select("isOnline lastSeen");
+    const result = await getUserStatusService(req.params.userId);
 
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+    if (result.error) {
+      return res.status(404).json({ msg: result.error });
     }
 
-    res.json({
-      isOnline: user.isOnline,
-      lastSeen: user.lastSeen,
-    });
+    res.json(result);
 
   } catch (err) {
     console.error("User Status Error:", err);
