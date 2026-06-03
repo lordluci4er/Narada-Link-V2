@@ -44,6 +44,32 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  // --------------------------------------------------
+  // LAST SEEN FORMAT
+  // --------------------------------------------------
+
+  String formatLastSeen(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Offline";
+    }
+
+    try {
+      final dt = DateTime.parse(value).toLocal();
+
+      int hour = dt.hour;
+      final minute = dt.minute.toString().padLeft(2, '0');
+
+      final amPm = hour >= 12 ? "PM" : "AM";
+
+      if (hour > 12) hour -= 12;
+      if (hour == 0) hour = 12;
+
+      return "Last seen $hour:$minute $amPm";
+    } catch (_) {
+      return "Offline";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayName = widget.name ?? "Narada Link User";
@@ -51,22 +77,50 @@ class _ChatScreenState extends State<ChatScreen> {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          resizeToAvoidBottomInset: true,
-          appBar: _buildAppBar(displayName),
-          body: SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: _buildMessageSection(),
+        return GestureDetector(
+          onTap: () {
+            FocusScope.of(context).unfocus();
+          },
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xff0F0F10),
+                  Color(0xff151517),
+                ],
+              ),
+            ),
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+
+              /// FIXED KEYBOARD JUMP
+              resizeToAvoidBottomInset: false,
+
+              appBar: PreferredSize(
+                preferredSize: const Size.fromHeight(72),
+                child: _buildAppBar(displayName),
+              ),
+
+              body: SafeArea(
+                top: true,
+                bottom: false,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(
+                          milliseconds: 200,
+                        ),
+                        child: _buildMessageSection(),
+                      ),
+                    ),
+
+                    _buildBottomSection(),
+                  ],
                 ),
-
-                if (controller.replyingTo != null)
-                  _buildReplyPreview(),
-
-                _buildInputArea(context),
-              ],
+              ),
             ),
           ),
         );
@@ -80,6 +134,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   PreferredSizeWidget _buildAppBar(String displayName) {
     return AppBar(
+      toolbarHeight: 72,
       backgroundColor: AppColors.background,
       elevation: 0,
       centerTitle: false,
@@ -93,15 +148,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
       title: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.grey.shade800,
-            child: Text(
-              displayName.isNotEmpty
-                  ? displayName[0].toUpperCase()
-                  : "U",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+          GestureDetector(
+            onTap: () {
+              // TODO: Open Profile Screen
+            },
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.grey.shade800,
+              child: Text(
+                displayName.isNotEmpty
+                    ? displayName[0].toUpperCase()
+                    : "U",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -110,18 +170,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
 
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
 
                 Row(
                   children: [
@@ -140,9 +203,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                     Flexible(
                       child: Text(
-                        controller.isOnline
-                            ? "Online"
-                            : (controller.lastSeen ?? "Offline"),
+                        _buildStatusText(),
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
@@ -162,10 +223,28 @@ class _ChatScreenState extends State<ChatScreen> {
         IconButton(
           icon: const Icon(Icons.more_vert),
           onPressed: () {
-            // TODO: Chat options menu
+            // TODO: Chat Menu
           },
         ),
       ],
+    );
+  }
+
+  // --------------------------------------------------
+  // STATUS TEXT
+  // --------------------------------------------------
+
+  String _buildStatusText() {
+    // Future Ready
+    // if (controller.isTyping) return "Typing...";
+    // if (controller.isRecording) return "Recording...";
+
+    if (controller.isOnline) {
+      return "Online";
+    }
+
+    return formatLastSeen(
+      controller.lastSeen,
     );
   }
 
@@ -195,47 +274,35 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // --------------------------------------------------
-  // REPLY PREVIEW
+  // BOTTOM SECTION
   // --------------------------------------------------
 
-  Widget _buildReplyPreview() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.15),
-        border: const Border(
-          top: BorderSide(
-            color: Colors.white10,
-          ),
-        ),
-      ),
-      child: ReplyPreview(
-        replyingTo: controller.replyingTo!,
-        onCancel: controller.clearReply,
-      ),
-    );
-  }
-
-  // --------------------------------------------------
-  // INPUT AREA
-  // --------------------------------------------------
-
-  Widget _buildInputArea(BuildContext context) {
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 150),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+  Widget _buildBottomSection() {
+    return SafeArea(
+      top: false,
       child: Container(
-        decoration: const BoxDecoration(
-          border: Border(
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          border: const Border(
             top: BorderSide(
               color: Colors.white10,
             ),
           ),
         ),
-        child: ChatInputBox(
-          controller: controller.textController,
-          onSend: controller.sendMessage,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (controller.replyingTo != null)
+              ReplyPreview(
+                replyingTo: controller.replyingTo!,
+                onCancel: controller.clearReply,
+              ),
+
+            ChatInputBox(
+              controller: controller.textController,
+              onSend: controller.sendMessage,
+            ),
+          ],
         ),
       ),
     );
