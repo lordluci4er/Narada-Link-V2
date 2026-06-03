@@ -36,17 +36,10 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (!widget.isMe) return const SizedBox();
 
     switch (status) {
-      case "sending":
-        return const Icon(
-          Icons.schedule,
-          size: 16,
-          color: Colors.grey,
-        );
-
       case "sent":
         return const Icon(
           Icons.check,
-          size: 16,
+          size: 15,
           color: Colors.grey,
         );
 
@@ -60,7 +53,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           ).createShader(bounds),
           child: const Icon(
             Icons.done_all,
-            size: 16,
+            size: 15,
             color: Colors.white,
           ),
         );
@@ -68,28 +61,21 @@ class _MessageBubbleState extends State<MessageBubble> {
       case "seen":
         return const Icon(
           Icons.done_all,
-          size: 16,
+          size: 15,
           color: Colors.blueAccent,
-        );
-
-      case "failed":
-        return const Icon(
-          Icons.error_outline,
-          size: 16,
-          color: Colors.red,
         );
 
       default:
         return const Icon(
           Icons.schedule,
-          size: 16,
+          size: 15,
           color: Colors.grey,
         );
     }
   }
 
   // --------------------------------------------------
-  // FORMAT TIME
+  // TIME FORMAT
   // --------------------------------------------------
 
   String formatTime(String? date) {
@@ -98,8 +84,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     try {
       final dt = DateTime.parse(date).toLocal();
 
-      final hour =
-          dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+      int hour = dt.hour;
+
+      if (hour > 12) {
+        hour -= 12;
+      }
+
+      if (hour == 0) {
+        hour = 12;
+      }
 
       final ampm = dt.hour >= 12 ? "PM" : "AM";
 
@@ -110,25 +103,11 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   // --------------------------------------------------
-  // SEEN TEXT
-  // --------------------------------------------------
-
-  String buildSeenText() {
-    if (widget.seenAt == null) return "";
-
-    final seen = formatTime(widget.seenAt);
-
-    if (seen.isEmpty) return "";
-
-    return "Seen $seen";
-  }
-
-  // --------------------------------------------------
   // LONG PRESS MENU
   // --------------------------------------------------
 
-  void _showMessageMenu(String text) {
-    showModalBottomSheet(
+  Future<void> _showMessageMenu() async {
+    await showModalBottomSheet(
       context: context,
       builder: (_) {
         return SafeArea(
@@ -139,7 +118,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                 title: const Text("Copy"),
                 onTap: () {
                   Clipboard.setData(
-                    ClipboardData(text: text),
+                    ClipboardData(
+                      text: widget.message["text"] ?? "",
+                    ),
                   );
 
                   Navigator.pop(context);
@@ -151,9 +132,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 onTap: () {
                   Navigator.pop(context);
 
-                  if (widget.onReply != null) {
-                    widget.onReply!(widget.message);
-                  }
+                  widget.onReply?.call(widget.message);
                 },
               ),
             ],
@@ -167,84 +146,62 @@ class _MessageBubbleState extends State<MessageBubble> {
   Widget build(BuildContext context) {
     final safeStatus = widget.status ?? "sent";
 
-    final text = widget.message["text"]?.toString() ?? "";
+    final text = widget.message["text"] ?? "";
+
     final replyText = widget.message["replyText"];
 
-    return Semantics(
-      label: widget.isMe
-          ? "Your message"
-          : "Received message",
-      child: GestureDetector(
-        onLongPress: () => _showMessageMenu(text),
-
+    return Stack(
+      alignment: Alignment.centerLeft,
+      children: [
         // --------------------------------------------------
-        // SWIPE TO REPLY
+        // SWIPE REPLY INDICATOR
         // --------------------------------------------------
 
-        onHorizontalDragUpdate: (details) {
-          setState(() {
-            dragX += details.delta.dx;
+        if (dragX > 20)
+          const Positioned(
+            left: 16,
+            child: Icon(
+              Icons.reply,
+              size: 24,
+            ),
+          ),
 
-            if (widget.isMe) {
-              if (dragX > 0) dragX = 0;
-              if (dragX < -80) dragX = -80;
-            } else {
+        // --------------------------------------------------
+        // MESSAGE
+        // --------------------------------------------------
+
+        GestureDetector(
+          onLongPress: _showMessageMenu,
+
+          onHorizontalDragUpdate: (details) {
+            setState(() {
+              dragX += details.delta.dx;
+
               if (dragX < 0) dragX = 0;
               if (dragX > 80) dragX = 80;
+            });
+          },
+
+          onHorizontalDragEnd: (_) {
+            if (dragX > 50) {
+              widget.onReply?.call(widget.message);
             }
-          });
-        },
 
-        onHorizontalDragEnd: (_) {
-          final shouldReply =
-              widget.isMe ? dragX < -50 : dragX > 50;
+            setState(() {
+              dragX = 0;
+            });
+          },
 
-          if (shouldReply && widget.onReply != null) {
-            HapticFeedback.lightImpact();
-            widget.onReply!(widget.message);
-          }
+          child: Align(
+            alignment: widget.isMe
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
 
-          setState(() {
-            dragX = 0;
-          });
-        },
-
-        child: Stack(
-          children: [
-            // --------------------------------------------------
-            // REPLY ICON
-            // --------------------------------------------------
-
-            Positioned.fill(
-              child: Align(
-                alignment: widget.isMe
-                    ? Alignment.centerRight
-                    : Alignment.centerLeft,
-                child: Opacity(
-                  opacity: dragX.abs() / 80,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 24,
-                    ),
-                    child: Icon(
-                      Icons.reply,
-                      color: Colors.blueAccent,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // --------------------------------------------------
-            // BUBBLE
-            // --------------------------------------------------
-
-            Transform.translate(
+            child: Transform.translate(
               offset: Offset(dragX, 0),
+
               child: AnimatedContainer(
-                duration: const Duration(
-                  milliseconds: 150,
-                ),
+                duration: const Duration(milliseconds: 150),
 
                 margin: const EdgeInsets.symmetric(
                   vertical: 4,
@@ -252,8 +209,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                 ),
 
                 padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 14,
+                  vertical: 8,
+                  horizontal: 12,
                 ),
 
                 constraints: BoxConstraints(
@@ -266,12 +223,10 @@ class _MessageBubbleState extends State<MessageBubble> {
                       ? const Color(0xFF2C2C2C)
                       : const Color(0xFFE0E0E0),
 
-                  boxShadow: dragX.abs() > 20
+                  boxShadow: dragX > 20
                       ? [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(
-                              0.4,
-                            ),
+                            color: Colors.blue.withOpacity(0.25),
                             blurRadius: 10,
                           )
                         ]
@@ -280,16 +235,21 @@ class _MessageBubbleState extends State<MessageBubble> {
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(14),
                     topRight: const Radius.circular(14),
+
+                    // Bubble Tail Feel
+
                     bottomLeft: Radius.circular(
-                      widget.isMe ? 14 : 4,
+                      widget.isMe ? 14 : 2,
                     ),
+
                     bottomRight: Radius.circular(
-                      widget.isMe ? 4 : 14,
+                      widget.isMe ? 2 : 14,
                     ),
                   ),
                 ),
 
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
@@ -301,18 +261,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                         replyText.toString().isNotEmpty)
                       Container(
                         width: double.infinity,
-                        margin: const EdgeInsets.only(
-                          bottom: 6,
-                        ),
+                        margin:
+                            const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: widget.isMe
-                              ? Colors.white.withOpacity(
-                                  0.05,
-                                )
-                              : Colors.black.withOpacity(
-                                  0.05,
-                                ),
+                              ? Colors.white.withOpacity(0.05)
+                              : Colors.black.withOpacity(0.05),
                           border: const Border(
                             left: BorderSide(
                               color: Colors.blueAccent,
@@ -323,14 +278,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                               BorderRadius.circular(6),
                         ),
                         child: Text(
-                          replyText.toString(),
+                          replyText,
                           maxLines: 1,
                           overflow:
                               TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
-                            fontStyle:
-                                FontStyle.italic,
+                            fontStyle: FontStyle.italic,
                             color: widget.isMe
                                 ? Colors.white70
                                 : Colors.black54,
@@ -339,95 +293,68 @@ class _MessageBubbleState extends State<MessageBubble> {
                       ),
 
                     // --------------------------------------------------
-                    // MESSAGE TEXT
+                    // MESSAGE + TIME
                     // --------------------------------------------------
 
-                    SelectableText(
-                      text,
-                      style: TextStyle(
-                        color: widget.isMe
-                            ? Colors.white
-                            : Colors.black,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // --------------------------------------------------
-                    // TIME + STATUS
-                    // --------------------------------------------------
-
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize:
-                            MainAxisSize.min,
-                        children: [
-                          Text(
-                            formatTime(
-                              widget.createdAt,
-                            ),
+                    Stack(
+                      children: [
+                        Padding(
+                          padding:
+                              const EdgeInsets.only(
+                            right: 60,
+                            bottom: 16,
+                          ),
+                          child: SelectableText(
+                            text,
                             style: TextStyle(
-                              fontSize: 10,
                               color: widget.isMe
-                                  ? Colors.white70
-                                  : Colors.black54,
+                                  ? Colors.white
+                                  : Colors.black,
+                              fontSize: 15.5,
+                              height: 1.3,
                             ),
                           ),
+                        ),
 
-                          const SizedBox(width: 4),
-
-                          Tooltip(
-                            message: safeStatus,
-                            child: AnimatedSwitcher(
-                              duration:
-                                  const Duration(
-                                milliseconds: 200,
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Row(
+                            mainAxisSize:
+                                MainAxisSize.min,
+                            children: [
+                              Text(
+                                formatTime(
+                                  widget.createdAt,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: widget.isMe
+                                      ? Colors.white70
+                                      : Colors.black54,
+                                ),
                               ),
-                              child: buildTicks(
+
+                              if (widget.isMe)
+                                const SizedBox(
+                                  width: 4,
+                                ),
+
+                              buildTicks(
                                 safeStatus,
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-
-                    // --------------------------------------------------
-                    // SEEN TIME
-                    // --------------------------------------------------
-
-                    if (widget.isMe &&
-                        widget.seenAt != null &&
-                        widget.seenAt!
-                            .isNotEmpty)
-                      Padding(
-                        padding:
-                            const EdgeInsets.only(
-                          top: 2,
-                        ),
-                        child: Align(
-                          alignment:
-                              Alignment.centerRight,
-                          child: Text(
-                            buildSeenText(),
-                            style:
-                                const TextStyle(
-                              fontSize: 10,
-                              color: Colors
-                                  .blueAccent,
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
