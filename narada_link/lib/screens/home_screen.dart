@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../utils/colors.dart';
 import '../controllers/home_controller.dart';
+import '../utils/colors.dart';
 
-// widgets
 import '../widgets/chat_list_widget.dart';
 import '../widgets/empty_state_widget.dart';
 
@@ -22,19 +21,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late HomeController controller;
+  late final HomeController controller;
 
   @override
   void initState() {
     super.initState();
 
-    /// ✅ INIT CONTROLLER
     controller = HomeController(
       jwt: widget.jwt,
       myId: widget.myId,
-    );
-
-    controller.init();
+    )..init();
   }
 
   @override
@@ -51,30 +47,96 @@ class _HomeScreenState extends State<HomeScreen> {
         return Scaffold(
           backgroundColor: AppColors.background,
 
+          appBar: _buildAppBar(),
+
+          floatingActionButton: _buildFab(),
+
           body: SafeArea(
-            child: controller.loading
-                ? const Center(child: CircularProgressIndicator())
-
-                /// 🔥 EMPTY STATE
-                : controller.chats.isEmpty
-                    ? EmptyStateWidget(
-                        jwt: widget.jwt,
-                        myId: widget.myId,
-                        onRefresh: controller.loadChats,
-                      )
-
-                    /// 🔥 CHAT LIST ✅ FIXED
-                    : ChatListWidget(
-                        chats: controller.chats,
-                        myId: widget.myId,
-                        jwt: widget.jwt,
-                        formatTime: controller.formatChatTime,
-                        getStatusText: controller.getStatusText,
-                        onRefresh: controller.loadChats,
-                      ),
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await controller.loadChats();
+              },
+              child: _buildBody(),
+            ),
           ),
         );
       },
+    );
+  }
+
+  // --------------------------------------------------
+  // APP BAR
+  // --------------------------------------------------
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      centerTitle: false,
+      backgroundColor: AppColors.background,
+
+      title: const Text(
+        "Chats",
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+      ),
+
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: () {
+            // TODO Search
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  // --------------------------------------------------
+  // BODY
+  // --------------------------------------------------
+
+  Widget _buildBody() {
+    if (controller.loading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (controller.chats.isEmpty) {
+      return EmptyStateWidget(
+        jwt: widget.jwt,
+        myId: widget.myId,
+        onRefresh: controller.loadChats,
+      );
+    }
+
+    return ChatListWidget(
+      chats: controller.chats,
+      myId: widget.myId,
+      jwt: widget.jwt,
+      formatTime: controller.formatChatTime,
+      getStatusText: controller.getStatusText,
+      onRefresh: controller.loadChats,
+    );
+  }
+
+  // --------------------------------------------------
+  // FAB
+  // --------------------------------------------------
+
+  Widget _buildFab() {
+    return FloatingActionButton(
+      backgroundColor: AppColors.primary,
+      onPressed: () {
+        // TODO Open user list
+      },
+      child: const Icon(Icons.chat),
     );
   }
 }
