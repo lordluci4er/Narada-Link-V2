@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../utils/colors.dart';
-
-// ✅ controller
 import '../controllers/chat_controller.dart';
-
-// ✅ widgets
-import '../widgets/chat_message_list.dart';
+import '../utils/colors.dart';
 import '../widgets/chat_input_box.dart';
+import '../widgets/chat_message_list.dart';
 import '../widgets/reply_preview.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -39,9 +35,7 @@ class _ChatScreenState extends State<ChatScreen> {
       jwt: widget.jwt,
       userId: widget.userId,
       myId: widget.myId,
-    );
-
-    controller.init();
+    )..init();
   }
 
   @override
@@ -59,59 +53,189 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (context, _) {
         return Scaffold(
           backgroundColor: AppColors.background,
+          resizeToAvoidBottomInset: true,
 
-          /// 🔝 APP BAR
-          appBar: AppBar(
-            backgroundColor: AppColors.background,
-            elevation: 0,
-            title: Column(
+          appBar: _buildAppBar(displayName),
+
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: _buildMessageSection(),
+                ),
+
+                if (controller.replyingTo != null)
+                  _buildReplyPreview(),
+
+                _buildInputArea(context),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --------------------------------------------------
+  // APP BAR
+  // --------------------------------------------------
+
+  PreferredSizeWidget _buildAppBar(String displayName) {
+    return AppBar(
+      backgroundColor: AppColors.background,
+      elevation: 0,
+      centerTitle: false,
+
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => Navigator.pop(context),
+      ),
+
+      titleSpacing: 0,
+
+      title: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.grey.shade800,
+            child: Text(
+              displayName.isNotEmpty
+                  ? displayName[0].toUpperCase()
+                  : "U",
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(displayName),
-
-                /// 🟢 STATUS
                 Text(
-                  controller.isOnline
-                      ? "Online"
-                      : controller.lastSeen ?? "",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+                const SizedBox(height: 2),
+
+                Row(
+                  children: [
+                    if (controller.isOnline)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+
+                    if (controller.isOnline)
+                      const SizedBox(width: 6),
+
+                    Flexible(
+                      child: Text(
+                        controller.isOnline
+                            ? "Online"
+                            : (controller.lastSeen ?? "Offline"),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+        ],
+      ),
 
-          /// 📱 BODY
-          body: Column(
-            children: [
-              /// 💬 MESSAGE LIST
-              Expanded(
-                child: ChatMessageList(
-                  messages: controller.messages,
-                  myId: widget.myId,
-                  scrollController: controller.scrollController,
-                  onReply: controller.setReply,
-                ),
-              ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.call),
+          onPressed: () {},
+        ),
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
 
-              /// 🔁 REPLY PREVIEW
-              if (controller.replyingTo != null)
-                ReplyPreview(
-                  replyingTo: controller.replyingTo!,
-                  onCancel: controller.clearReply, // ✅ correct
-                ),
+  // --------------------------------------------------
+  // MESSAGE SECTION
+  // --------------------------------------------------
 
-              /// ✉️ INPUT BOX
-              ChatInputBox(
-                controller: controller.textController,
-                onSend: controller.sendMessage,
-              ),
-            ],
+  Widget _buildMessageSection() {
+    if (controller.messages.isEmpty) {
+      return const Center(
+        child: Text(
+          "Start Conversation 👋",
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 16,
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    return ChatMessageList(
+      messages: controller.messages,
+      myId: widget.myId,
+      scrollController: controller.scrollController,
+      onReply: controller.setReply,
+    );
+  }
+
+  // --------------------------------------------------
+  // REPLY PREVIEW
+  // --------------------------------------------------
+
+  Widget _buildReplyPreview() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.15),
+        border: const Border(
+          top: BorderSide(
+            color: Colors.white10,
+          ),
+        ),
+      ),
+      child: ReplyPreview(
+        replyingTo: controller.replyingTo!,
+        onCancel: controller.clearReply,
+      ),
+    );
+  }
+
+  // --------------------------------------------------
+  // INPUT AREA
+  // --------------------------------------------------
+
+  Widget _buildInputArea(BuildContext context) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: Colors.white10,
+            ),
+          ),
+        ),
+        child: ChatInputBox(
+          controller: controller.textController,
+          onSend: controller.sendMessage,
+        ),
+      ),
     );
   }
 }
