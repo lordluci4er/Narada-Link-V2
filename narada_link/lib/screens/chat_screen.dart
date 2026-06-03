@@ -54,9 +54,7 @@ class _ChatScreenState extends State<ChatScreen> {
         return Scaffold(
           backgroundColor: AppColors.background,
           resizeToAvoidBottomInset: true,
-
           appBar: _buildAppBar(displayName),
-
           body: SafeArea(
             child: Column(
               children: [
@@ -102,6 +100,9 @@ class _ChatScreenState extends State<ChatScreen> {
               displayName.isNotEmpty
                   ? displayName[0].toUpperCase()
                   : "U",
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
 
@@ -115,6 +116,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
 
                 const SizedBox(height: 2),
@@ -156,12 +160,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
       actions: [
         IconButton(
-          icon: const Icon(Icons.call),
-          onPressed: () {},
-        ),
-        IconButton(
           icon: const Icon(Icons.more_vert),
-          onPressed: () {},
+          onPressed: () {
+            // TODO: Chat options menu
+          },
         ),
       ],
     );
@@ -177,8 +179,8 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Text(
           "Start Conversation 👋",
           style: TextStyle(
-            color: Colors.white70,
             fontSize: 16,
+            color: Colors.white70,
           ),
         ),
       );

@@ -46,11 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         return Scaffold(
           backgroundColor: AppColors.background,
-
           appBar: _buildAppBar(),
-
-          floatingActionButton: _buildFab(),
-
           body: SafeArea(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -73,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 0,
       centerTitle: false,
       backgroundColor: AppColors.background,
-
       title: const Text(
         "Chats",
         style: TextStyle(
@@ -81,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
           fontSize: 24,
         ),
       ),
-
       actions: [
         IconButton(
           icon: const Icon(Icons.search),
@@ -123,20 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
       formatTime: controller.formatChatTime,
       getStatusText: controller.getStatusText,
       onRefresh: controller.loadChats,
-    );
-  }
-
-  // --------------------------------------------------
-  // FAB
-  // --------------------------------------------------
-
-  Widget _buildFab() {
-    return FloatingActionButton(
-      backgroundColor: AppColors.primary,
-      onPressed: () {
-        // TODO Open user list
-      },
-      child: const Icon(Icons.chat),
     );
   }
 }
